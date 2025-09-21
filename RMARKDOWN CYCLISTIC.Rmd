@@ -1,0 +1,135 @@
+---
+title: "Cyclistic Bike-Share Analysis"
+author: "Sage Evans"
+date: "2025-09-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This code chunk loads all necessary libraries before running the analysis.
+library(tidyverse)
+library(readxl)
+```
+
+
+# 1. Statement of the Business Task
+
+The primary business task is to understand how casual riders and annual members use Cyclistic bikes differently. The insights from this analysis will be used to create a new marketing strategy aimed at converting casual riders into annual members, as annual members are considered more profitable for the company.
+
+# 2. Description of Data Sources
+
+The data used for this analysis is Cyclistic's historical trip data from 2020 and 2019, provided by the fictional company Cyclistic. The datasets are publicly available and are provided by Motivate International Inc. under a specific license. The data is first-party, meaning it was collected by the company itself, and it has been anonymized to protect user privacy.
+
+# 3. Data Cleaning and Transformation
+
+## Data Consolidation:
+I combined the two separate quarterly datasets (Divvy_Trips_2019_Q1 and Divvy_Trips_2020_Q1) into a single data frame using the bind_rows() function in R.
+
+## Handling Missing Data:
+I removed rows with missing start_station_name and end_station_name to ensure the accuracy of station-based analysis.
+
+## Transformations:
+I created new columns:
+ride_length: Calculated the duration of each trip in minutes.
+day_of_week: Extracted the day of the week to analyze daily usage patterns.
+
+## Outlier Removal:
+I filtered out rides that were too short (under 1 minute) or too long (over 24 hours) to ensure that the average ride duration was not skewed by illogical data.
+
+## Here is the R code used to prepare the data.
+
+
+```{r}
+# Load data from the files
+trips_2019_q1 <- read_csv("C:/Users/sagee/R Projects/Case Study 1 Cyclistic Project/Divvy_Trips_2019_Q1.xlsx.csv")
+trips_2020_q1 <- read_csv("C:/Users/sagee/R Projects/Case Study 1 Cyclistic Project/Divvy_Trips_2020_Q1.xlsx.csv")
+
+# Combine and clean the data
+cleaned_trips <- bind_rows(trips_2019_q1, trips_2020_q1) %>%
+  drop_na(start_station_name, end_station_name) %>%
+  mutate(
+    started_at = ymd_hms(started_at),
+    ended_at = ymd_hms(ended_at),
+    ride_length = difftime(ended_at, started_at, units = "mins"),
+    day_of_week = wday(started_at, label = TRUE, abbr = FALSE)
+  ) %>%
+  filter(ride_length > 1 & ride_length < 1440)
+```
+
+
+
+
+# 4. Summary of Your Analysis
+Casual riders use the bikes for longer, more recreational trips, especially on weekends, while annual members use them for shorter, more consistent weekday commutes.
+
+# 5. Supporting Visualizations and Key Findings
+## Finding 1: Average Ride Duration
+
+```{r finding 1}
+# Code to create the bar chart
+cleaned_trips %>%
+  group_by(member_casual) %>%
+  summarise(average_ride_length = mean(ride_length, na.rm = TRUE)) %>%
+  ggplot(aes(x = member_casual, y = average_ride_length, fill = member_casual)) +
+  geom_col() +
+  labs(title = "Average Ride Duration by User Type")
+```
+
+## Fining 2: Daily Usage Patterns
+
+```{r finding 2}
+# Count the total number of rides for each user type on each day of the week
+daily_rides <- cleaned_trips %>%
+  group_by(member_casual, day_of_week) %>%
+  summarise(total_rides = n(), .groups = "drop")
+
+# Create a bar chart visualization
+ggplot(data = daily_rides, aes(x = day_of_week, y = total_rides, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Total Rides by Day of the Week and User Type",
+    x = "Day of the Week",
+    y = "Total Number of Rides"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Finding 3: Top Station Usage
+
+```{r finding 3}
+# Find the top 10 start stations for each user type
+top_start_stations <- cleaned_trips %>%
+  group_by(member_casual, start_station_name) %>%
+  summarise(ride_count = n(), .groups = "drop") %>%
+  arrange(desc(ride_count)) %>%
+  slice_head(n = 10, by = member_casual)
+
+# Create a bar chart visualization
+ggplot(top_start_stations, aes(x = reorder(start_station_name, -ride_count), y = ride_count, fill = member_casual)) +
+  geom_col() +
+  facet_wrap(~member_casual, scales = "free_y") +
+  labs(
+    title = "Top 10 Start Stations by User Type",
+    x = "Start Station",
+    y = "Total Number of Rides"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+
+# 6. Top 3 Recommendations
+
+## Recommendation 1:
+Offer a Weekend-Focused Membership Plan. The analysis showed that casual ridership spikes on weekends, while members' usage is consistent throughout the week. This suggests casual riders use bikes for recreational or social purposes, not for daily commutes. A full annual membership might seem like a poor value to them.
+
+Recommendation: Create a new, lower-cost membership tier specifically for weekend use. This would be a compelling offer for casual riders who primarily use the bikes on Saturdays and Sundays. The plan could be framed as a "Weekend Warrior" pass, making it feel tailored to their lifestyle.
+
+## Recommendation 2:
+Launch a Geographically-Targeted Marketing Campaign. The analysis identified the top stations for casual riders, which are likely located near parks, tourist attractions, and entertainment venues. Members, on the other hand, start and end their rides in different areas, often near business districts or residential hubs.
+
+Recommendation: Develop a marketing campaign that targets these high-traffic casual rider locations. This could include digital ads on social media that activate when users are near these locations, or physical signage at the bike docks themselves. The messaging should highlight the cost savings of a membership over a day pass, directly appealing to a casual rider's likely motivation (a one-time, low-cost rental).
+
+## Recommendation 3: 
+Implement a Tiered Loyalty Program. The analysis found that casual riders take longer rides on average than members. This indicates that they are willing to spend more time on the bikes. You can leverage this behavior to incentivize a full membership.
+
+Recommendation: Create a loyalty program for casual riders where they can earn rewards for the distance or duration of their rides. For example, after a rider completes five trips or spends a total of 100 minutes on a bike, their next email could contain a special discount code for an annual membership. This program would use their existing usage patterns to guide them toward the more profitable membership model.
